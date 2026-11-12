@@ -1,11 +1,18 @@
 // Central place for all backend calls.
-// Change API_BASE if the FastAPI server runs on a different host/port.
+// Connects to FastAPI backend at localhost:8000
 const API_BASE = "http://localhost:8000";
 
 async function handle(response) {
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`API error ${response.status}: ${text}`);
+    let msg = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.detail) msg = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+    } catch {
+      // Keep raw text
+    }
+    throw new Error(`API error ${response.status}: ${msg}`);
   }
   return response.json();
 }
@@ -21,10 +28,11 @@ export async function analyzeMarkets(msme) {
 
 export async function getMarketDetail(state, msme) {
   const params = new URLSearchParams({
-    selling_price: msme.selling_price,
-    production_capacity: msme.production_capacity,
-    expansion_budget: msme.expansion_budget,
-    target_customer: msme.target_customer,
+    selling_price: msme.selling_price || 0,
+    production_capacity: msme.production_capacity || 0,
+    expansion_budget: msme.expansion_budget || 0,
+    target_customer: msme.target_customer || "B2C",
+    current_customer_base: msme.current_customer_base || "Local",
     constraints: (msme.constraints || []).join(","),
   });
   const res = await fetch(`${API_BASE}/market/${encodeURIComponent(state)}?${params.toString()}`);
@@ -51,5 +59,15 @@ export async function getStrategy(state, msme) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ state, msme }),
   });
+  return handle(res);
+}
+
+export async function getRawMarkets() {
+  const res = await fetch(`${API_BASE}/markets`);
+  return handle(res);
+}
+
+export async function getDatasetMetadata() {
+  const res = await fetch(`${API_BASE}/dataset-metadata`);
   return handle(res);
 }
